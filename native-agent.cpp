@@ -25,7 +25,11 @@ void (*readBytes_orig) (JNIEnv *env, jobject thisObj, jbyteArray b, jint off, ji
 void (*write_orig) (JNIEnv *env, jobject thisObj, jint val, jboolean append);
 void (*writeBytes_orig) (JNIEnv *env, jobject thisObj, jbyteArray b, jint off, jint len, jboolean append);
 //void (*socketWrite0_orig) (JNIEnv *env, jobject thisObj, jobject fdObj, jbyteArray data, jint off, jint len);
-//void (*FileDispatcherImpl_write0_orig) (JNIEnv *env, jobject thisObj, jobject fdObj, jlong addr, jint len);
+void (*UnixNativeDispatcher_open0_orig) (JNIEnv *env, jobject thisObj, jlong addr, jint off, jint len);
+void (*FileDispatcherImpl_close0_orig) (JNIEnv *env, jobject thisObj, jobject fdObj);
+void (*FileDispatcherImpl_read0_orig) (JNIEnv *env, jobject thisObj, jobject fdObj, jlong addr, jint len);
+void (*FileDispatcherImpl_write0_orig) (JNIEnv *env, jobject thisObj, jobject fdObj, jlong addr, jint len);
+
 
 const char* GetClassName(JNIEnv *env, jobject obj, jclass cls) {
   // First get the class object
@@ -85,21 +89,64 @@ void JNICALL callbackMethodEntry(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread t
 
 /*
 bool traceon = true;
+*/
 
+JNIEXPORT void JNICALL fuzzer_UnixNativeDispatcher_open0 (JNIEnv *env, jobject thisObj, jlong addr, jint off, jint len) {
+  cout << "File opened" << endl;
 
-// Our native method to replace FileDispatcherImpl.write0
+  time_t now = time(0);
+  //char *dt = ctime(&now);
+  FileIOEvent *fie = new FileIOEvent(now, open);
+  fie->set_file_info("N/A", "N/A");
+  fie->set_content_info("N/A", off, len);
+  fie->save_to_csv();
+
+  UnixNativeDispatcher_open0_orig(env, thisObj, addr, off, len);
+}
+
+JNIEXPORT void JNICALL fuzzer_FileDispatcherImpl_read0(JNIEnv *env, jobject thisObj, jobject fdObj, jlong addr, jint len) {
+  cout << "[AGENT] [FileDispatcherImpl_read0] len=" << len << endl;
+
+  time_t now = time(0);
+  //char *dt = ctime(&now);
+  FileIOEvent *fie = new FileIOEvent(now, read);
+  fie->set_file_info("N/A", "N/A");
+  fie->set_content_info("N/A", 0, len);
+  fie->save_to_csv();
+
+  FileDispatcherImpl_read0_orig(env, thisObj, fdObj, addr, len);
+}
+
 JNIEXPORT void JNICALL fuzzer_FileDispatcherImpl_write0(JNIEnv *env, jobject thisObj, jobject fdObj, jlong addr, jint len) {
   cout << "[AGENT] [FileDispatcherImpl_write0] len=" << len << endl;
+
+  time_t now = time(0);
+  //char *dt = ctime(&now);
+  FileIOEvent *fie = new FileIOEvent(now, write);
+  fie->set_file_info("N/A", "N/A");
+  fie->set_content_info("N/A", 0, len);
+  fie->save_to_csv();
+
   FileDispatcherImpl_write0_orig(env, thisObj, fdObj, addr, len);
 }
 
+JNIEXPORT void JNICALL fuzzer_FileDispatcherImpl_close0(JNIEnv *env, jobject thisObj, jobject fdObj) {
+  cout << "File closed" << endl;
+  time_t now = time(0);
+  //char *dt = ctime(&now);
+  FileIOEvent *fie = new FileIOEvent(now, close);
+  fie->set_file_info("N/A", "N/A");
+  fie->set_content_info("N/A", 0, 0);
+  fie->save_to_csv();
+
+  FileDispatcherImpl_close0_orig(env, thisObj, fdObj);
+}
 
 // Our native method to replace SocketOutputStream.write0
-JNIEXPORT void JNICALL fuzzer_SocketOutputStream_write0(JNIEnv *env, jobject thisObj, jobject fdObj, jbyteArray b, jint off, jint len) {
+/*JNIEXPORT void JNICALL fuzzer_SocketOutputStream_write0(JNIEnv *env, jobject thisObj, jobject fdObj, jbyteArray b, jint off, jint len) {
   cout << "[AGENT] [SocketOutputStream_write0] len=" << len << endl;
   socketWrite0_orig(env, thisObj, fdObj, b, off, len);
-}
-*/
+}*/
 
 JNIEXPORT void JNICALL fuzzer_FileStream_open1(JNIEnv *env, jobject thisObj, jstring filename, jboolean append) {
   const char *name = env->GetStringUTFChars(filename, 0);
@@ -302,15 +349,36 @@ void JNICALL callbackNativeMethodBind(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthr
       socketWrite0_orig = (void (*)(JNIEnv*, jobject, jobject, jbyteArray, jint, jint))address;
     }
 
-  } else if (!strcmp(class_signature, "Lsun/nio/ch/FileDispatcherImpl;")) {
+  } else*/ 
+  if (!strcmp(class_signature, "Lsun/nio/ch/FileDispatcherImpl;")) {
 
     if (!strcmp(method_name, "write0")) {
-      cout << "nativemethodbind: " << class_signature << " " << method_name << endl;
+      //cout << "nativemethodbind: " << class_signature << " " << method_name << endl;
       *new_address_ptr = (void*)fuzzer_FileDispatcherImpl_write0;
       FileDispatcherImpl_write0_orig = (void (*)(JNIEnv*, jobject, jobject, jlong, jint))address;
     }
 
-  } else {*/
+    if (!strcmp(method_name, "read0")) {
+      //cout << "nativemethodbind: " << class_signature << " " << method_name << endl;
+      *new_address_ptr = (void*)fuzzer_FileDispatcherImpl_read0;
+      FileDispatcherImpl_read0_orig = (void (*)(JNIEnv*, jobject, jobject, jlong, jint))address;
+    }
+
+    if (!strcmp(method_name, "close0")) {
+      //cout << "nativemethodbind: " << class_signature << " " << method_name << endl;
+      *new_address_ptr = (void*)fuzzer_FileDispatcherImpl_close0;
+      FileDispatcherImpl_close0_orig = (void (*)(JNIEnv*, jobject, jobject))address;
+    }
+
+  } else if (!strcmp(class_signature, "Lsun/nio/fs/UnixNativeDispatcher;")) {
+
+    if (!strcmp(method_name, "open0")) {
+      //cout << "nativemethodbind: " << class_signature << " " << method_name << endl;
+      *new_address_ptr = (void*)fuzzer_UnixNativeDispatcher_open0;
+      UnixNativeDispatcher_open0_orig = (void (*)(JNIEnv*, jobject, jlong, jint, jint))address;
+    }
+
+  } else {
 
     if (!strcmp(method_name,"writeBytes")) {
       //cout << "nativemethodbind: " << class_signature << " " << method_name << endl;
@@ -322,11 +390,6 @@ void JNICALL callbackNativeMethodBind(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthr
       //cout << "nativemethodbind: " << class_signature << " " << method_name << endl;
       *new_address_ptr = (void*)fuzzer_FileOutputStream_write;
       write_orig = (void (*)(JNIEnv*, jobject, jint, jboolean))address;
-    }
-
-    else if (!strcmp(method_name,"write0")) {
-      //cout << "nativemethodbind: " << class_signature << " " << method_name << endl;
-      cout << "Need to implement" << endl;
     }
 
     if (!strcmp(method_name,"readBytes")) {
@@ -355,7 +418,7 @@ void JNICALL callbackNativeMethodBind(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthr
       *new_address_ptr = (void*)fuzzer_FileStream_close;
       close_orig = (void (*)(JNIEnv*, jobject))address;
     }
-  //}
+  }
 
   jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(method_name));
   jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(signature));

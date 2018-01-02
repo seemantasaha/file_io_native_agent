@@ -42,12 +42,12 @@ public class WriteToFileExample {
 		useBufferedOutPutStream(list, "test/testFile5.txt");
 		useByteArrayOutputStream("Test for ByteArrayOutputStream", "test/testfile6.txt");
 		useFilterOutputStream("test/testfile7.txt");
-		//Files.write(Paths.get("testfile8.txt"), str2.getBytes(), StandardOpenOption.CREATE);
 		System.out.println("Starting a test for all file writing operation ends");
+		Files.write(Paths.get("test/testfile8.txt"), str2.getBytes(), StandardOpenOption.CREATE);
 
 		// Redaing Examples
 		useFileInputStream("test/test_input1.txt");
-		//List<String> lines = Files.readAllLines(Paths.get("test/test_input2.txt"));
+		List<String> lines = Files.readAllLines(Paths.get("test/test_input2.txt"));
 
 	}
 
