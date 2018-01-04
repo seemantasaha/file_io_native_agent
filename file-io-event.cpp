@@ -18,6 +18,7 @@ bool replace(std::string& str, const std::string& from, const std::string& to) {
     return true;
 }
 
+
 FileIOEvent :: FileIOEvent(time_t now, EventType tp) {
 	timestamp = ctime(&now);
 	type = tp;
@@ -40,24 +41,7 @@ void FileIOEvent :: set_content_info (char *content, int off, int len) {
 }
 
 void FileIOEvent :: save_to_csv () {
-	/*char row[200];
-	string s = to_string(type);
-	strcpy(row, s.c_str());
-	strcat(row, ",");
-	strcat(row, file_info->name);
-	strcat(row, ",");
-	strcat(row, file_info->abs_loc);
-	strcat(row, ",");
-	strcat(row, content_info->content);
-	strcat(row, ",");
-	string o = to_string(content_info->offset);
-	strcat(row, o.c_str());
-	strcat(row, ",");
-	string l = to_string(content_info->len);
-	strcat(row, l.c_str());
-	strcat(row, ",");
-	strcat(row, timestamp);*/
-
+	
 	stringstream ss;
 	ss << to_string(type) << ",";
 	ss << file_info->name << ",";
@@ -65,11 +49,9 @@ void FileIOEvent :: save_to_csv () {
 	ss << content_info->content << ",";
 	ss << to_string(content_info->offset) << ",";
 	ss << to_string(content_info->len) << ",";
-	ss << timestamp;
 	
 	string row = ss.str();
 	replace(row, "\n", "\\N");
-
 	myfile << row;
-	myfile << endl;
+	myfile << timestamp;
 }

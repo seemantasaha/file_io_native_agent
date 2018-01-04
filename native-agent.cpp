@@ -25,11 +25,25 @@ void (*readBytes_orig) (JNIEnv *env, jobject thisObj, jbyteArray b, jint off, ji
 void (*write_orig) (JNIEnv *env, jobject thisObj, jint val, jboolean append);
 void (*writeBytes_orig) (JNIEnv *env, jobject thisObj, jbyteArray b, jint off, jint len, jboolean append);
 //void (*socketWrite0_orig) (JNIEnv *env, jobject thisObj, jobject fdObj, jbyteArray data, jint off, jint len);
-void (*UnixNativeDispatcher_open0_orig) (JNIEnv *env, jobject thisObj, jlong addr, jint off, jint len);
+void (*UnixNativeDispatcher_open0_orig) (JNIEnv *env, jobject thisObj, jlong pathAddress, jint flags, jint mode);
 void (*FileDispatcherImpl_close0_orig) (JNIEnv *env, jobject thisObj, jobject fdObj);
 void (*FileDispatcherImpl_read0_orig) (JNIEnv *env, jobject thisObj, jobject fdObj, jlong addr, jint len);
 void (*FileDispatcherImpl_write0_orig) (JNIEnv *env, jobject thisObj, jobject fdObj, jlong addr, jint len);
 
+char* split_to_get_filename(const char* yourStr) {
+    char str[1000];
+    strncpy(str, yourStr, sizeof(str));
+    char* parts[100] = {0};
+    unsigned int index = 0;
+    parts[index] = strtok(str,"/");
+
+    while(parts[index] != 0)
+    {
+      ++index;
+      parts[index] = strtok(0, "/");
+    }
+    return strdup(parts[index-1]);
+} 
 
 const char* GetClassName(JNIEnv *env, jobject obj, jclass cls) {
   // First get the class object
@@ -85,68 +99,19 @@ void JNICALL callbackMethodEntry(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread t
   jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(class_generic));
 }
 
-
-
-/*
-bool traceon = true;
-*/
-
-JNIEXPORT void JNICALL fuzzer_UnixNativeDispatcher_open0 (JNIEnv *env, jobject thisObj, jlong addr, jint off, jint len) {
+JNIEXPORT void JNICALL fuzzer_UnixNativeDispatcher_open0 (JNIEnv *env, jobject thisObj, jlong pathAddress, jint flags, jint mode) {
   cout << "File opened" << endl;
+  cout << pathAddress << endl;
 
   time_t now = time(0);
   //char *dt = ctime(&now);
   FileIOEvent *fie = new FileIOEvent(now, open);
   fie->set_file_info("N/A", "N/A");
-  fie->set_content_info("N/A", off, len);
-  fie->save_to_csv();
-
-  UnixNativeDispatcher_open0_orig(env, thisObj, addr, off, len);
-}
-
-JNIEXPORT void JNICALL fuzzer_FileDispatcherImpl_read0(JNIEnv *env, jobject thisObj, jobject fdObj, jlong addr, jint len) {
-  cout << "[AGENT] [FileDispatcherImpl_read0] len=" << len << endl;
-
-  time_t now = time(0);
-  //char *dt = ctime(&now);
-  FileIOEvent *fie = new FileIOEvent(now, read);
-  fie->set_file_info("N/A", "N/A");
-  fie->set_content_info("N/A", 0, len);
-  fie->save_to_csv();
-
-  FileDispatcherImpl_read0_orig(env, thisObj, fdObj, addr, len);
-}
-
-JNIEXPORT void JNICALL fuzzer_FileDispatcherImpl_write0(JNIEnv *env, jobject thisObj, jobject fdObj, jlong addr, jint len) {
-  cout << "[AGENT] [FileDispatcherImpl_write0] len=" << len << endl;
-
-  time_t now = time(0);
-  //char *dt = ctime(&now);
-  FileIOEvent *fie = new FileIOEvent(now, write);
-  fie->set_file_info("N/A", "N/A");
-  fie->set_content_info("N/A", 0, len);
-  fie->save_to_csv();
-
-  FileDispatcherImpl_write0_orig(env, thisObj, fdObj, addr, len);
-}
-
-JNIEXPORT void JNICALL fuzzer_FileDispatcherImpl_close0(JNIEnv *env, jobject thisObj, jobject fdObj) {
-  cout << "File closed" << endl;
-  time_t now = time(0);
-  //char *dt = ctime(&now);
-  FileIOEvent *fie = new FileIOEvent(now, close);
-  fie->set_file_info("N/A", "N/A");
   fie->set_content_info("N/A", 0, 0);
   fie->save_to_csv();
 
-  FileDispatcherImpl_close0_orig(env, thisObj, fdObj);
+  UnixNativeDispatcher_open0_orig(env, thisObj, pathAddress, flags, mode);
 }
-
-// Our native method to replace SocketOutputStream.write0
-/*JNIEXPORT void JNICALL fuzzer_SocketOutputStream_write0(JNIEnv *env, jobject thisObj, jobject fdObj, jbyteArray b, jint off, jint len) {
-  cout << "[AGENT] [SocketOutputStream_write0] len=" << len << endl;
-  socketWrite0_orig(env, thisObj, fdObj, b, off, len);
-}*/
 
 JNIEXPORT void JNICALL fuzzer_FileStream_open1(JNIEnv *env, jobject thisObj, jstring filename, jboolean append) {
   const char *name = env->GetStringUTFChars(filename, 0);
@@ -155,7 +120,7 @@ JNIEXPORT void JNICALL fuzzer_FileStream_open1(JNIEnv *env, jobject thisObj, jst
   time_t now = time(0);
   //char *dt = ctime(&now);
   FileIOEvent *fie = new FileIOEvent(now, open);
-  fie->set_file_info(name, name);
+  fie->set_file_info(split_to_get_filename(name), name);
   fie->set_content_info("N/A", 0, 0);
   fie->save_to_csv();
 
@@ -170,7 +135,7 @@ JNIEXPORT void JNICALL fuzzer_FileStream_open2(JNIEnv *env, jobject thisObj, jst
   time_t now = time(0);
   //char *dt = ctime(&now);
   FileIOEvent *fie = new FileIOEvent(now, open);
-  fie->set_file_info(name, name);
+  fie->set_file_info(split_to_get_filename(name), name);
   fie->set_content_info("N/A", 0, 0);
   fie->save_to_csv();
 
@@ -181,6 +146,32 @@ JNIEXPORT void JNICALL fuzzer_FileStream_open2(JNIEnv *env, jobject thisObj, jst
 JNIEXPORT void JNICALL fuzzer_FileStream_close(JNIEnv *env, jobject thisObj) {
   cout << "File closed" << endl;
 
+  jclass cls = env->GetObjectClass(thisObj);
+  assert(cls != NULL);
+  
+  jfieldID fieldID = env->GetFieldID(cls, "path", "Ljava/lang/String;");
+  if (fieldID == NULL)
+    return;
+
+  jstring str = (jstring) env->GetObjectField(thisObj, fieldID);
+  if(str != NULL)
+  {
+    const char *cstr = env->GetStringUTFChars(str, 0);
+    time_t now = time(0);
+    //char *dt = ctime(&now);
+    FileIOEvent *fie = new FileIOEvent(now, close);
+    fie->set_file_info(split_to_get_filename(cstr), cstr);
+    fie->set_content_info("N/A", 0, 0);
+    fie->save_to_csv();
+    env->ReleaseStringUTFChars(str, cstr);
+  }
+
+  close_orig(env, thisObj);
+}
+
+JNIEXPORT void JNICALL fuzzer_FileDispatcherImpl_close0(JNIEnv *env, jobject thisObj, jobject fdObj) {
+  cout << "File closed" << endl;
+
   time_t now = time(0);
   //char *dt = ctime(&now);
   FileIOEvent *fie = new FileIOEvent(now, close);
@@ -188,104 +179,20 @@ JNIEXPORT void JNICALL fuzzer_FileStream_close(JNIEnv *env, jobject thisObj) {
   fie->set_content_info("N/A", 0, 0);
   fie->save_to_csv();
 
-  close_orig(env, thisObj);
+  FileDispatcherImpl_close0_orig(env, thisObj, fdObj);
 }
 
-JNIEXPORT void JNICALL fuzzer_FileOutputStream_writeBytes(JNIEnv *env, jobject thisObj, jbyteArray b, jint off, jint len, jboolean append) {
-  jclass cls = env->GetObjectClass(thisObj);
-  assert(cls != NULL);
-  jfieldID fieldID = env->GetFieldID(cls, "path", "Ljava/lang/String;");
-  assert(fieldID != NULL);
-  jstring str = (jstring) env->GetObjectField(thisObj, fieldID);
-  if(str != NULL)
-  {
-    const char *cstr = env->GetStringUTFChars(str, 0);
-    cout << "[AGENT] [FileOutputStream_writeBytes] filepath=" << cstr << endl;
-    cout << "[AGENT] [FileOutputStream_writeBytes] off=" << off << endl;
-    cout << "[AGENT] [FileOutputStream_writeBytes] len=" << len << endl;
+JNIEXPORT void JNICALL fuzzer_FileDispatcherImpl_read0(JNIEnv *env, jobject thisObj, jobject fdObj, jlong addr, jint len) {
+  cout << "[AGENT] [FileDispatcherImpl_read0] len=" << len << endl;
 
-    jboolean isCopy;
-    jbyte* a = env->GetByteArrayElements(b,&isCopy);
-    char* c = (char*)a;
-    c[len-off] = '\0';
-    
-    time_t now = time(0);
-    //char *dt = ctime(&now);
-    FileIOEvent *fie = new FileIOEvent(now, write);
-    fie->set_file_info(cstr, cstr);
-    fie->set_content_info("N/A", off, len);
-    fie->save_to_csv();
+  time_t now = time(0);
+  //char *dt = ctime(&now);
+  FileIOEvent *fie = new FileIOEvent(now, read);
+  fie->set_file_info("N/A", "N/A");
+  fie->set_content_info("N/A", 0, len);
+  fie->save_to_csv();
 
-    env->ReleaseByteArrayElements(b, a, 0);
-    env->ReleaseStringUTFChars(str, cstr);
-  }
-  //printf("[AGENT] [FileOutputStream_writeBytes] data= %s\n",c);
-
-  writeBytes_orig(env, thisObj, b, off, len, append);
-}
-
-JNIEXPORT void JNICALL fuzzer_FileOutputStream_write(JNIEnv *env, jobject thisObj, jint val, jboolean append) {
-  jclass cls = env->GetObjectClass(thisObj);
-  assert(cls != NULL);
-  jfieldID fieldID = env->GetFieldID(cls, "path", "Ljava/lang/String;");
-  assert(fieldID != NULL);
-  jstring str = (jstring) env->GetObjectField(thisObj, fieldID);
-  if(str != NULL)
-  {
-    const char *cstr = env->GetStringUTFChars(str, 0);
-    cout << "[AGENT] [FileOutputStream_write] this.path=" << cstr << endl;
-    cout << "[AGENT] [FileOutputStream_write] data=" << val << endl;
-    cout << "[AGENT] [FileOutputStream_write] off=" << "0" << endl;
-    cout << "[AGENT] [FileOutputStream_write] len=" << "1" << endl;
-
-    time_t now = time(0);
-    //char *dt = ctime(&now);
-    FileIOEvent *fie = new FileIOEvent(now, write);
-    fie->set_file_info(cstr, cstr);
-    fie->set_content_info("N/A", 0, 1);
-    fie->save_to_csv();
-    
-    env->ReleaseStringUTFChars(str, cstr);
-  }
-  
-  write_orig(env, thisObj, val, append);
-}
-
-JNIEXPORT void JNICALL fuzzer_FileInputStream_readBytes(JNIEnv *env, jobject thisObj, jbyteArray b, jint off, jint len) {
-  jclass cls = env->GetObjectClass(thisObj);
-  assert(cls != NULL);
-  jfieldID fieldID = env->GetFieldID(cls, "path", "Ljava/lang/String;");
-  assert(fieldID != NULL);
-  jstring str = (jstring) env->GetObjectField(thisObj, fieldID);
-  if(str != NULL)
-  {
-    const char *cstr = env->GetStringUTFChars(str, 0);
-    const char* oracle = strstr(cstr,"oracle");
-    const char* appclass = strstr(cstr,"class");
-    if (oracle == NULL && appclass == NULL) {
-      cout << "[AGENT] [FileInputStream_readBytes] this.path=" << cstr << endl;
-      cout << "[AGENT] [FileInputStream_readBytes] off=" << off << endl;
-      cout << "[AGENT] [FileInputStream_readBytes] len=" << len << endl;
-
-
-      time_t now = time(0);
-      //char *dt = ctime(&now);
-      FileIOEvent *fie = new FileIOEvent(now, read);
-      fie->set_file_info(cstr, cstr);
-      fie->set_content_info("N/A", off, len);
-      fie->save_to_csv();
-    }
-    env->ReleaseStringUTFChars(str, cstr);
-  }
-
-  /*jboolean isCopy;
-  jbyte* a = env->GetByteArrayElements(b,&isCopy);
-  char* d = (char*)a;
-  d[len-off] = '\0';
-  printf("[AGENT] [FileOutputStream_readBytes] data= %s\n",d);
-  env->ReleaseByteArrayElements(b, a, 0);*/
-  
-  readBytes_orig(env, thisObj, b, off, len);
+  FileDispatcherImpl_read0_orig(env, thisObj, fdObj, addr, len);
 }
 
 JNIEXPORT void JNICALL fuzzer_FileInputStream_read0(JNIEnv *env, jobject thisObj) {
@@ -310,8 +217,8 @@ JNIEXPORT void JNICALL fuzzer_FileInputStream_read0(JNIEnv *env, jobject thisObj
     time_t now = time(0);
     //char *dt = ctime(&now);
     FileIOEvent *fie = new FileIOEvent(now, read);
-    fie->set_file_info(cstr, cstr);
-    fie->set_content_info("N/A", 0, 1);
+    fie->set_file_info(split_to_get_filename(cstr), cstr);
+    fie->set_content_info("N/A", 0, 1); //Get content and replace N/A  
     fie->save_to_csv();
 
     env->ReleaseStringUTFChars(str, cstr);
@@ -320,8 +227,121 @@ JNIEXPORT void JNICALL fuzzer_FileInputStream_read0(JNIEnv *env, jobject thisObj
   read0_orig(env, thisObj);
 }
 
+JNIEXPORT void JNICALL fuzzer_FileInputStream_readBytes(JNIEnv *env, jobject thisObj, jbyteArray b, jint off, jint len) {
+  jclass cls = env->GetObjectClass(thisObj);
+  assert(cls != NULL);
+  jfieldID fieldID = env->GetFieldID(cls, "path", "Ljava/lang/String;");
+  assert(fieldID != NULL);
+  jstring str = (jstring) env->GetObjectField(thisObj, fieldID);
+  if(str != NULL)
+  {
+    const char *cstr = env->GetStringUTFChars(str, 0);
+    const char* oracle = strstr(cstr,"oracle");
+    const char* appclass = strstr(cstr,"class");
+    if (oracle == NULL && appclass == NULL) {
+      cout << "[AGENT] [FileInputStream_readBytes] this.path=" << cstr << endl;
+      cout << "[AGENT] [FileInputStream_readBytes] off=" << off << endl;
+      cout << "[AGENT] [FileInputStream_readBytes] len=" << len << endl;
 
 
+      time_t now = time(0);
+      //char *dt = ctime(&now);
+      FileIOEvent *fie = new FileIOEvent(now, read);
+      fie->set_file_info(split_to_get_filename(cstr), cstr);
+      fie->set_content_info("N/A", off, len);//Get content and replace N/A
+      fie->save_to_csv();
+    }
+    env->ReleaseStringUTFChars(str, cstr);
+  }
+
+  /*jboolean isCopy;
+  jbyte* a = env->GetByteArrayElements(b,&isCopy);
+  char* d = (char*)a;
+  d[len-off] = '\0';
+  printf("[AGENT] [FileOutputStream_readBytes] data= %s\n",d);
+  env->ReleaseByteArrayElements(b, a, 0);*/
+  
+  readBytes_orig(env, thisObj, b, off, len);
+}
+
+JNIEXPORT void JNICALL fuzzer_FileDispatcherImpl_write0(JNIEnv *env, jobject thisObj, jobject fdObj, jlong addr, jint len) {
+  cout << "[AGENT] [FileDispatcherImpl_write0] len=" << len << endl;
+
+  time_t now = time(0);
+  //char *dt = ctime(&now);
+  FileIOEvent *fie = new FileIOEvent(now, write);
+  fie->set_file_info("N/A", "N/A");
+  fie->set_content_info("N/A", 0, len);
+  fie->save_to_csv();
+
+  FileDispatcherImpl_write0_orig(env, thisObj, fdObj, addr, len);
+}
+
+// Our native method to replace SocketOutputStream.write0
+/*JNIEXPORT void JNICALL fuzzer_SocketOutputStream_write0(JNIEnv *env, jobject thisObj, jobject fdObj, jbyteArray b, jint off, jint len) {
+  cout << "[AGENT] [SocketOutputStream_write0] len=" << len << endl;
+  socketWrite0_orig(env, thisObj, fdObj, b, off, len);
+}*/
+
+JNIEXPORT void JNICALL fuzzer_FileOutputStream_write(JNIEnv *env, jobject thisObj, jint val, jboolean append) {
+  jclass cls = env->GetObjectClass(thisObj);
+  assert(cls != NULL);
+  jfieldID fieldID = env->GetFieldID(cls, "path", "Ljava/lang/String;");
+  assert(fieldID != NULL);
+  jstring str = (jstring) env->GetObjectField(thisObj, fieldID);
+  if(str != NULL)
+  {
+    const char *cstr = env->GetStringUTFChars(str, 0);
+    cout << "[AGENT] [FileOutputStream_write] this.path=" << cstr << endl;
+    cout << "[AGENT] [FileOutputStream_write] data=" << val << endl;
+    cout << "[AGENT] [FileOutputStream_write] off=" << "0" << endl;
+    cout << "[AGENT] [FileOutputStream_write] len=" << "1" << endl;
+
+    time_t now = time(0);
+    //char *dt = ctime(&now);
+    FileIOEvent *fie = new FileIOEvent(now, write);
+    fie->set_file_info(split_to_get_filename(cstr), cstr);
+    fie->set_content_info("N/A", 0, 1);//Get content and replace N/A
+    fie->save_to_csv();
+    
+    env->ReleaseStringUTFChars(str, cstr);
+  }
+  
+  write_orig(env, thisObj, val, append);
+}
+
+JNIEXPORT void JNICALL fuzzer_FileOutputStream_writeBytes(JNIEnv *env, jobject thisObj, jbyteArray b, jint off, jint len, jboolean append) {
+  jclass cls = env->GetObjectClass(thisObj);
+  assert(cls != NULL);
+  jfieldID fieldID = env->GetFieldID(cls, "path", "Ljava/lang/String;");
+  assert(fieldID != NULL);
+  jstring str = (jstring) env->GetObjectField(thisObj, fieldID);
+  if(str != NULL)
+  {
+    const char *cstr = env->GetStringUTFChars(str, 0);
+    cout << "[AGENT] [FileOutputStream_writeBytes] filepath=" << cstr << endl;
+    cout << "[AGENT] [FileOutputStream_writeBytes] off=" << off << endl;
+    cout << "[AGENT] [FileOutputStream_writeBytes] len=" << len << endl;
+
+    jboolean isCopy;
+    jbyte* a = env->GetByteArrayElements(b,&isCopy);
+    char* c = (char*)a;
+    c[len-off] = '\0';
+    
+    time_t now = time(0);
+    //char *dt = ctime(&now);
+    FileIOEvent *fie = new FileIOEvent(now, write);
+    fie->set_file_info(split_to_get_filename(cstr), cstr);
+    fie->set_content_info("N/A", off, len);//Get content and replace N/A
+    fie->save_to_csv();
+
+    env->ReleaseByteArrayElements(b, a, 0);
+    env->ReleaseStringUTFChars(str, cstr);
+  }
+  //printf("[AGENT] [FileOutputStream_writeBytes] data= %s\n",c);
+
+  writeBytes_orig(env, thisObj, b, off, len, append);
+}
 
 
 void JNICALL callbackNativeMethodBind(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thread, jmethodID method, void* address, void** new_address_ptr) {
