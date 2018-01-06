@@ -48,11 +48,12 @@ public class WriteToFileExample {
 		// Redaing Examples
 		useFileInputStream("test/test_input1.txt");
 		List<String> lines = Files.readAllLines(Paths.get("test/test_input2.txt"));
+		useFileInputStream2("test/test_input3.txt");
 
 	}
 
 
-	public static void useFileInputStream(String filePath) {
+	public static void useFileInputStream (String filePath) {
 	  FileInputStream in = null;
 
 	  try {
@@ -70,6 +71,26 @@ public class WriteToFileExample {
 	  } finally {
 	  }
 	}
+
+	public static void useFileInputStream2 (String filePath) {
+	  FileInputStream fis = null;
+      int i = 0;
+      char c;
+      byte[] bs = new byte[4];
+      
+      try {
+         fis = new FileInputStream(filePath);
+         i = fis.read(bs);
+         for(byte b:bs) {
+            c = (char)b;
+         } 
+         if(fis!=null)
+            fis.close();
+      } catch(Exception ex) {
+         ex.printStackTrace();
+      } finally {
+      }
+    }
 
 // Writing examples
 	public static void usePrintWriter(String content, String filepath) {

@@ -8,6 +8,7 @@
 #include <fstream>
 #include <cassert>
 #include <ctime>
+#include <sstream>
 
 #include "file-io-event.h"
 
@@ -29,6 +30,37 @@ void (*UnixNativeDispatcher_open0_orig) (JNIEnv *env, jobject thisObj, jlong pat
 void (*FileDispatcherImpl_close0_orig) (JNIEnv *env, jobject thisObj, jobject fdObj);
 void (*FileDispatcherImpl_read0_orig) (JNIEnv *env, jobject thisObj, jobject fdObj, jlong addr, jint len);
 void (*FileDispatcherImpl_write0_orig) (JNIEnv *env, jobject thisObj, jobject fdObj, jlong addr, jint len);
+
+bool check_validity(JNIEnv *env, jobject thisObj) {
+  jclass cls = env->GetObjectClass(thisObj);
+  assert(cls != NULL);
+  jfieldID fieldID = env->GetFieldID(cls, "path", "Ljava/lang/String;");
+  assert(fieldID != NULL);
+  jstring str = (jstring) env->GetObjectField(thisObj, fieldID);
+  if(str != NULL)
+  {
+    const char *cstr = env->GetStringUTFChars(str, 0);
+    const char* oracle = strstr(cstr,"oracle");
+    const char* appclass = strstr(cstr,"class");
+    env->ReleaseStringUTFChars(str, cstr); 
+    if (oracle == NULL && appclass == NULL) {
+      return true;
+    }
+  }
+  return false;
+}
+
+char* get_char_from_byte(JNIEnv *env, jbyteArray b) {
+  jboolean isCopy;
+  jbyte* a = env->GetByteArrayElements(b,&isCopy);
+  int textLength = strlen((const char*)a);
+  cout << "Data len: " << textLength << endl;
+  char* data = (char*) malloc(textLength + 1);
+  memcpy(data, a, textLength);
+  data[textLength] = '\0';
+
+  cout << "Data : " << data << endl;
+}
 
 char* split_to_get_filename(const char* yourStr) {
     char str[1000];
@@ -114,32 +146,36 @@ JNIEXPORT void JNICALL fuzzer_UnixNativeDispatcher_open0 (JNIEnv *env, jobject t
 }
 
 JNIEXPORT void JNICALL fuzzer_FileStream_open1(JNIEnv *env, jobject thisObj, jstring filename, jboolean append) {
-  const char *name = env->GetStringUTFChars(filename, 0);
-  cout << "File opened : " << name << endl;
+  if (check_validity(env, thisObj)) {
+    const char *name = env->GetStringUTFChars(filename, 0);
+    cout << "File opened : " << name << endl;
 
-  time_t now = time(0);
-  //char *dt = ctime(&now);
-  FileIOEvent *fie = new FileIOEvent(now, open);
-  fie->set_file_info(split_to_get_filename(name), name);
-  fie->set_content_info("N/A", 0, 0);
-  fie->save_to_csv();
+    time_t now = time(0);
+    //char *dt = ctime(&now);
+    FileIOEvent *fie = new FileIOEvent(now, open);
+    fie->set_file_info(split_to_get_filename(name), name);
+    fie->set_content_info("N/A", 0, 0);
+    fie->save_to_csv();
+    env->ReleaseStringUTFChars(filename, name);
+  }
 
-  env->ReleaseStringUTFChars(filename, name);
   open1_orig(env, thisObj, filename, append);
 }
 
 JNIEXPORT void JNICALL fuzzer_FileStream_open2(JNIEnv *env, jobject thisObj, jstring filename) {
-  const char *name = env->GetStringUTFChars(filename, 0);
-  cout << "File opened : " << name << endl;
+  if (check_validity(env, thisObj)) {
+    const char *name = env->GetStringUTFChars(filename, 0);
+    cout << "File opened : " << name << endl;
 
-  time_t now = time(0);
-  //char *dt = ctime(&now);
-  FileIOEvent *fie = new FileIOEvent(now, open);
-  fie->set_file_info(split_to_get_filename(name), name);
-  fie->set_content_info("N/A", 0, 0);
-  fie->save_to_csv();
+    time_t now = time(0);
+    //char *dt = ctime(&now);
+    FileIOEvent *fie = new FileIOEvent(now, open);
+    fie->set_file_info(split_to_get_filename(name), name);
+    fie->set_content_info("N/A", 0, 0);
+    fie->save_to_csv();
+    env->ReleaseStringUTFChars(filename, name);
+  }
 
-  env->ReleaseStringUTFChars(filename, name);
   open2_orig(env, thisObj, filename);
 }
 
@@ -157,12 +193,16 @@ JNIEXPORT void JNICALL fuzzer_FileStream_close(JNIEnv *env, jobject thisObj) {
   if(str != NULL)
   {
     const char *cstr = env->GetStringUTFChars(str, 0);
-    time_t now = time(0);
-    //char *dt = ctime(&now);
-    FileIOEvent *fie = new FileIOEvent(now, close);
-    fie->set_file_info(split_to_get_filename(cstr), cstr);
-    fie->set_content_info("N/A", 0, 0);
-    fie->save_to_csv();
+    const char* oracle = strstr(cstr,"oracle");
+    const char* appclass = strstr(cstr,"class");
+    if (oracle == NULL && appclass == NULL) {
+      time_t now = time(0);
+      //char *dt = ctime(&now);
+      FileIOEvent *fie = new FileIOEvent(now, close);
+      fie->set_file_info(split_to_get_filename(cstr), cstr);
+      fie->set_content_info("N/A", 0, 0);
+      fie->save_to_csv();
+    }
     env->ReleaseStringUTFChars(str, cstr);
   }
 
@@ -208,18 +248,22 @@ JNIEXPORT void JNICALL fuzzer_FileInputStream_read0(JNIEnv *env, jobject thisObj
   if(str != NULL)
   {
     const char *cstr = env->GetStringUTFChars(str, 0);
-    cout << "[AGENT] [FileInputStream_read] this.path=" << cstr << endl;
-    cout << "[AGENT] [FileInputStream_read] data= N/A" << endl;
-    cout << "[AGENT] [FileInputStream_read] off=" << "0" << endl;
-    cout << "[AGENT] [FileInputStream_read] len=" << "1" << endl;
+    const char* oracle = strstr(cstr,"oracle");
+    const char* appclass = strstr(cstr,"class");
+    if (oracle == NULL && appclass == NULL) {
+      cout << "[AGENT] [FileInputStream_read] this.path=" << cstr << endl;
+      cout << "[AGENT] [FileInputStream_read] data= N/A" << endl;
+      cout << "[AGENT] [FileInputStream_read] off=" << "0" << endl;
+      cout << "[AGENT] [FileInputStream_read] len=" << "1" << endl;
 
 
-    time_t now = time(0);
-    //char *dt = ctime(&now);
-    FileIOEvent *fie = new FileIOEvent(now, read);
-    fie->set_file_info(split_to_get_filename(cstr), cstr);
-    fie->set_content_info("N/A", 0, 1); //Get content and replace N/A  
-    fie->save_to_csv();
+      time_t now = time(0);
+      //char *dt = ctime(&now);
+      FileIOEvent *fie = new FileIOEvent(now, read);
+      fie->set_file_info(split_to_get_filename(cstr), cstr);
+      fie->set_content_info("N/A", 0, 1); //Get content and replace N/A  
+      fie->save_to_csv();
+    } 
 
     env->ReleaseStringUTFChars(str, cstr);
   }
@@ -243,23 +287,17 @@ JNIEXPORT void JNICALL fuzzer_FileInputStream_readBytes(JNIEnv *env, jobject thi
       cout << "[AGENT] [FileInputStream_readBytes] off=" << off << endl;
       cout << "[AGENT] [FileInputStream_readBytes] len=" << len << endl;
 
+      //char* data = get_char_from_byte(env, b);
 
       time_t now = time(0);
       //char *dt = ctime(&now);
       FileIOEvent *fie = new FileIOEvent(now, read);
       fie->set_file_info(split_to_get_filename(cstr), cstr);
-      fie->set_content_info("N/A", off, len);//Get content and replace N/A
+      fie->set_content_info("N/A", off, len);
       fie->save_to_csv();
     }
     env->ReleaseStringUTFChars(str, cstr);
   }
-
-  /*jboolean isCopy;
-  jbyte* a = env->GetByteArrayElements(b,&isCopy);
-  char* d = (char*)a;
-  d[len-off] = '\0';
-  printf("[AGENT] [FileOutputStream_readBytes] data= %s\n",d);
-  env->ReleaseByteArrayElements(b, a, 0);*/
   
   readBytes_orig(env, thisObj, b, off, len);
 }
@@ -292,17 +330,25 @@ JNIEXPORT void JNICALL fuzzer_FileOutputStream_write(JNIEnv *env, jobject thisOb
   if(str != NULL)
   {
     const char *cstr = env->GetStringUTFChars(str, 0);
-    cout << "[AGENT] [FileOutputStream_write] this.path=" << cstr << endl;
-    cout << "[AGENT] [FileOutputStream_write] data=" << val << endl;
-    cout << "[AGENT] [FileOutputStream_write] off=" << "0" << endl;
-    cout << "[AGENT] [FileOutputStream_write] len=" << "1" << endl;
+    const char* oracle = strstr(cstr,"oracle");
+    const char* appclass = strstr(cstr,"class");
+    if (oracle == NULL && appclass == NULL) {
+      cout << "[AGENT] [FileOutputStream_write] this.path=" << cstr << endl;
+      cout << "[AGENT] [FileOutputStream_write] data=" << char(val) << endl;
+      cout << "[AGENT] [FileOutputStream_write] off=" << "0" << endl;
+      cout << "[AGENT] [FileOutputStream_write] len=" << "1" << endl;
 
-    time_t now = time(0);
-    //char *dt = ctime(&now);
-    FileIOEvent *fie = new FileIOEvent(now, write);
-    fie->set_file_info(split_to_get_filename(cstr), cstr);
-    fie->set_content_info("N/A", 0, 1);//Get content and replace N/A
-    fie->save_to_csv();
+      char *str = (char*)malloc(2);
+      snprintf(str, 2, "%c", char(val));
+      cout << "str: " << str << endl;
+
+      time_t now = time(0);
+      //char *dt = ctime(&now);
+      FileIOEvent *fie = new FileIOEvent(now, write);
+      fie->set_file_info(split_to_get_filename(cstr), cstr);
+      fie->set_content_info(str, 0, 1);//Get content and replace N/A
+      fie->save_to_csv();
+    }
     
     env->ReleaseStringUTFChars(str, cstr);
   }
@@ -319,23 +365,31 @@ JNIEXPORT void JNICALL fuzzer_FileOutputStream_writeBytes(JNIEnv *env, jobject t
   if(str != NULL)
   {
     const char *cstr = env->GetStringUTFChars(str, 0);
-    cout << "[AGENT] [FileOutputStream_writeBytes] filepath=" << cstr << endl;
-    cout << "[AGENT] [FileOutputStream_writeBytes] off=" << off << endl;
-    cout << "[AGENT] [FileOutputStream_writeBytes] len=" << len << endl;
+    const char* oracle = strstr(cstr,"oracle");
+    const char* appclass = strstr(cstr,"class");
+    if (oracle == NULL && appclass == NULL) {
+      cout << "[AGENT] [FileOutputStream_writeBytes] filepath=" << cstr << endl;
+      cout << "[AGENT] [FileOutputStream_writBytes] off=" << off << endl;
+      cout << "[AGENT] [FileOutputStream_writeBytes] len=" << len << endl;
 
-    jboolean isCopy;
-    jbyte* a = env->GetByteArrayElements(b,&isCopy);
-    char* c = (char*)a;
-    c[len-off] = '\0';
-    
-    time_t now = time(0);
-    //char *dt = ctime(&now);
-    FileIOEvent *fie = new FileIOEvent(now, write);
-    fie->set_file_info(split_to_get_filename(cstr), cstr);
-    fie->set_content_info("N/A", off, len);//Get content and replace N/A
-    fie->save_to_csv();
+      jboolean isCopy;
+      jbyte* a = env->GetByteArrayElements(b,&isCopy);
+      char* c = (char*)a;
+      c[len-off] = '\0';
 
-    env->ReleaseByteArrayElements(b, a, 0);
+      if (int(c[len-off-1]) >= 0 && int(c[len-off-1]) <= 31 || int(c[len-off-1]) == 127) {
+        c[len-off-1] = '\0';
+      }
+      
+      time_t now = time(0);
+      //char *dt = ctime(&now);
+      FileIOEvent *fie = new FileIOEvent(now, write);
+      fie->set_file_info(split_to_get_filename(cstr), cstr);
+      fie->set_content_info(c, off, len);//Get content and replace N/A
+      fie->save_to_csv();
+
+      env->ReleaseByteArrayElements(b, a, 0);
+    }
     env->ReleaseStringUTFChars(str, cstr);
   }
   //printf("[AGENT] [FileOutputStream_writeBytes] data= %s\n",c);
